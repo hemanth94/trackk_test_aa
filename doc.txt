@@ -1,0 +1,11 @@
+use 
+``` cargo build ```
+to build the project
+
+use 
+``` cargo run --bin server -- 5000 ```
+to run the server on 5000 port or give new port number
+
+use
+``` cargo run --bin client -- 127.0.0.1:5000 ```
+to start a client to connect to the server port, 5000 if your server is running on 5000 port 
