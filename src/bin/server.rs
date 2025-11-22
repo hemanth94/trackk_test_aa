@@ -118,7 +118,7 @@ fn broadcaster_loop(
                     // So that we can broadcast message by looping
                     let clients = clients_arc
                         .lock()
-                        .map_err(|e| format!("clients lock poisoned: {}", e))?;
+                        .map_err(|e| format!("clients lock poisoned in broadcaster ClientJoined: {}", e))?;
 
                     // Running a loop over all the clients that are alive with the shared state of threads
                     // Always leaving out sender to receive his own message
@@ -134,7 +134,7 @@ fn broadcaster_loop(
                         let mut w = client
                             .writer
                             .lock()
-                            .map_err(|e| format!("writer lock poisoned: {}", e))?;
+                            .map_err(|e| format!("writer lock poisoned in broadcaster writing: {} for client id {}", e,client.id))?;
                         // Sending string data as bytes to the stream, this will be received by the client end of tcp stream
                         w.write_all(notification.as_bytes())?;
                     }
@@ -143,12 +143,14 @@ fn broadcaster_loop(
             ServerMessage::ClientLeft { id, timestamp: _ } => {
                 // Sending this message to every other client after a client disconnects
                 log(&format!("Client disconnected: Client:{}", id));
+                // Releasing the clients_arc lock as quickly as possible to reduce the lock contention
+                // we release the lock contention by creating a separate scope
                 {
                     // Remove the client from shared state between threads so that he receives no more message broadcasts
                     // Do this before broadcasting so that other messages are not impacted due to client removal
                     let mut clients = clients_arc
                         .lock()
-                        .map_err(|e| format!("clients lock poisoned: {}", e))?;
+                        .map_err(|e| format!("clients lock poisoned in broadcaster client removal: {}", e))?;
                     // With retain we only have client ids which are still alive
                     clients.retain(|c| c.id != id);
                     log(&format!("Total number of clients live: {}", clients.len()));
@@ -159,12 +161,12 @@ fn broadcaster_loop(
                 {
                     let clients = clients_arc
                         .lock()
-                        .map_err(|e| format!("clients lock poisoned: {}", e))?;
+                        .map_err(|e| format!("clients lock poisoned in broadcaster ClientLeft: {}", e))?;
                     for client in clients.iter() {
                         let mut w = client
                             .writer
                             .lock()
-                            .map_err(|e| format!("writer lock poisoned: {}", e))?;
+                            .map_err(|e| format!("writer lock poisoned in broadcaster ClientLeft: {} for client id {}", e, client.id))?;
 
                         w.write_all(notification.as_bytes())?;
                     }
@@ -184,7 +186,7 @@ fn broadcaster_loop(
                 {
                     let clients = clients_arc
                         .lock()
-                        .map_err(|e| format!("clients lock poisoned: {}", e))?;
+                        .map_err(|e| format!("clients lock poisoned in broadcaster Broadcast: {}", e))?;
                     for client in clients.iter() {
                         if client.id == from_id {
                             continue; // don't send message again to sender
@@ -192,7 +194,7 @@ fn broadcaster_loop(
                         let mut w = client
                             .writer
                             .lock()
-                            .map_err(|e| format!("writer lock poisoned: {}", e))?;
+                            .map_err(|e| format!("writer lock poisoned in broadcaster Broadcast: {} for client id {}", e, client.id))?;
                         w.write_all(to_send.as_bytes())?;
                     }
                 }
